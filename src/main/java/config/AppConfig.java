@@ -1,5 +1,6 @@
 package config;
 
+import boundary.SonarScanner;
 import exception.ConfigException;
 
 import java.io.IOException;
@@ -9,6 +10,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.regex.Pattern;
@@ -118,6 +120,88 @@ public final class AppConfig {
         } catch (NumberFormatException e) {
             throw new ConfigException("metrics.mass.commit.threshold non e' un intero: " + raw, e);
         }
+    }
+
+    /** Cartella dove estrarre il codice delle release (per CK e SonarCloud). */
+    public Path workDir() {
+        return Path.of(optional("work.dir", "work"));
+    }
+
+    public String sonarHostUrl() {
+        return optional("sonar.host.url", "https://sonarcloud.io");
+    }
+
+    public String sonarOrganization() throws ConfigException {
+        return required("sonar.organization");
+    }
+
+    public String sonarProjectPrefix() {
+        return optional("sonar.project.prefix", "openjpa");
+    }
+
+    public SonarScanner.Mode sonarScannerMode() throws ConfigException {
+        String raw = optional("sonar.scanner.mode", "cli");
+        try {
+            return SonarScanner.Mode.valueOf(raw.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new ConfigException("sonar.scanner.mode deve essere cli o docker: " + raw, e);
+        }
+    }
+
+    public String sonarScannerCommand() {
+        return optional("sonar.scanner.command", "sonar-scanner");
+    }
+
+    public String sonarDockerImage() {
+        return optional("sonar.scanner.docker.image", "sonarsource/sonar-scanner-cli");
+    }
+
+    public boolean sonarReanalyze() {
+        return Boolean.parseBoolean(optional("sonar.reanalyze", "false"));
+    }
+
+    public String sonarSourceEncoding() {
+        return optional("sonar.source.encoding", "UTF-8");
+    }
+
+    public int sonarTaskTimeoutMinutes() throws ConfigException {
+        String raw = optional("sonar.task.timeout.minutes", "30");
+        try {
+            return Integer.parseInt(raw);
+        } catch (NumberFormatException e) {
+            throw new ConfigException("sonar.task.timeout.minutes non e' un intero: " + raw, e);
+        }
+    }
+
+    /**
+     * Token SonarCloud: dalla variabile d'ambiente {@code SONAR_TOKEN} oppure dalla proprieta'
+     * {@code sonar.token} del file indicato da {@code sonar.token.file} (da non versionare).
+     */
+    public String sonarToken() throws ConfigException {
+        String env = System.getenv("SONAR_TOKEN");
+        if (env != null && !env.isBlank()) {
+            return env.trim();
+        }
+        Path file = Path.of(optional("sonar.token.file", "secrets.properties"));
+        if (Files.exists(file)) {
+            Properties secrets = new Properties();
+            try (InputStream in = Files.newInputStream(file)) {
+                secrets.load(in);
+            } catch (IOException e) {
+                throw new ConfigException("Impossibile leggere " + file + ": " + e.getMessage(), e);
+            }
+            String token = secrets.getProperty("sonar.token", "");
+            if (!token.isBlank()) {
+                return token.trim();
+            }
+        }
+        throw new ConfigException("Token SonarCloud mancante: imposta la variabile d'ambiente SONAR_TOKEN "
+                + "oppure scrivi sonar.token=<token> in " + file);
+    }
+
+    private String optional(String key, String defaultValue) {
+        String value = props.getProperty(key);
+        return value == null || value.isBlank() ? defaultValue : value.trim();
     }
 
     private static Pattern pattern(String key, String raw) throws ConfigException {

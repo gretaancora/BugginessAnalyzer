@@ -25,7 +25,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.logging.Logger;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -54,9 +53,7 @@ public final class GitMetricsController {
         }
 
         GitRepository git = GitRepository.openOrClone(config.gitLocalPath(), config.gitRemoteUrl());
-        Pattern include = config.classesInclude();
-        Pattern exclude = config.classesExclude();
-        Predicate<String> isClass = p -> include.matcher(p).matches() && !exclude.matcher(p).matches();
+        Predicate<String> isClass = ReleaseWorkspace.classFilter(config);
         GitMetricsCalculator calculator = new GitMetricsCalculator(isClass, config.massCommitThreshold());
         FixCommitLinker linker = new FixCommitLinker(config.jiraProjectKey());
 

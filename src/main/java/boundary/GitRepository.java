@@ -9,6 +9,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -17,6 +18,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 /** Accesso a un repository Git locale tramite la CLI di git. */
 public final class GitRepository {
@@ -117,6 +120,43 @@ public final class GitRepository {
             }
         }
         return messages;
+    }
+
+    /**
+     * Estrae in {@code target} (creata se manca) i file del commit, senza toccare il repository.
+     * Usa {@code git archive} in formato zip e lo estrae in Java, quindi funziona anche su Windows.
+     */
+    public void exportTo(String commit, Path target) throws GitException {
+        try {
+            Files.createDirectories(target);
+            Path zip = Files.createTempFile("release-", ".zip");
+            try {
+                run("archive", "--format=zip", "--output=" + zip.toAbsolutePath(), commit);
+                unzip(zip, target);
+            } finally {
+                Files.deleteIfExists(zip);
+            }
+        } catch (IOException e) {
+            throw new GitException("Impossibile estrarre " + commit + " in " + target + ": " + e.getMessage(), e);
+        }
+    }
+
+    private static void unzip(Path zip, Path target) throws IOException {
+        Path root = target.toAbsolutePath().normalize();
+        try (ZipInputStream in = new ZipInputStream(Files.newInputStream(zip))) {
+            for (ZipEntry e = in.getNextEntry(); e != null; e = in.getNextEntry()) {
+                Path out = root.resolve(e.getName()).normalize();
+                if (!out.startsWith(root)) {
+                    throw new IOException("Percorso non valido nell'archivio: " + e.getName());
+                }
+                if (e.isDirectory()) {
+                    Files.createDirectories(out);
+                } else {
+                    Files.createDirectories(out.getParent());
+                    Files.copy(in, out, StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+        }
     }
 
     /**
