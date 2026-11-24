@@ -1,6 +1,7 @@
 package start;
 
 import config.AppConfig;
+import control.GitMetricsController;
 import control.ReleaseExtractionController;
 import exception.ConfigException;
 import exception.GitException;
@@ -28,6 +29,7 @@ public final class Main {
         try {
             AppConfig config = AppConfig.load(configFile);
             new ReleaseExtractionController(config).run();
+            new GitMetricsController(config).run();
         } catch (ConfigException | JiraException | GitException | PersistenceException e) {
             LOG.log(Level.SEVERE, e.getMessage(), e);
             System.exit(1);

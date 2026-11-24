@@ -89,6 +89,45 @@ public final class AppConfig {
         }
     }
 
+    public Path jiraTicketsSnapshot() throws ConfigException {
+        return Path.of(required("jira.tickets.snapshot"));
+    }
+
+    public String jiraTicketsJql() throws ConfigException {
+        return required("jira.tickets.jql");
+    }
+
+    public Pattern classesInclude() throws ConfigException {
+        return pattern("classes.include.regex", required("classes.include.regex"));
+    }
+
+    /** Pattern dei file da escludere; se la proprieta' manca non si esclude nulla. */
+    public Pattern classesExclude() throws ConfigException {
+        String raw = props.getProperty("classes.exclude.regex", "");
+        return raw.isBlank() ? Pattern.compile("(?!)") : pattern("classes.exclude.regex", raw.trim());
+    }
+
+    public int massCommitThreshold() throws ConfigException {
+        String raw = required("metrics.mass.commit.threshold");
+        try {
+            int value = Integer.parseInt(raw);
+            if (value <= 0) {
+                throw new ConfigException("metrics.mass.commit.threshold deve essere positivo: " + raw);
+            }
+            return value;
+        } catch (NumberFormatException e) {
+            throw new ConfigException("metrics.mass.commit.threshold non e' un intero: " + raw, e);
+        }
+    }
+
+    private static Pattern pattern(String key, String raw) throws ConfigException {
+        try {
+            return Pattern.compile(raw);
+        } catch (PatternSyntaxException e) {
+            throw new ConfigException(key + " non valida: " + raw, e);
+        }
+    }
+
     /** Suffissi provati per i tag; la stringa vuota indica il nome identico alla versione Jira. */
     public List<String> tagSuffixes() {
         String raw = props.getProperty("releases.tag.suffixes", "");
