@@ -9,6 +9,7 @@ import exception.GitException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -52,6 +53,30 @@ public final class ReleaseWorkspace {
             } catch (IOException e) {
                 throw new GitException("Impossibile scrivere in " + dir + ": " + e.getMessage(), e);
             }
+        }
+        return dir;
+    }
+
+    /**
+     * Cartella con le sole classi analizzate della release (stessi percorsi relativi), creata se non c'e'.
+     * CK usa tutte le sottocartelle come percorsi in cui cercare i tipi: limitarlo al codice di produzione
+     * riduce molto il tempo di analisi, e Fan-In e NOC vengono calcolati tra classi di produzione.
+     */
+    public Path classSources(Release release) throws GitException {
+        Path dir = workDir.resolve(release.getVersion() + "-classes").toAbsolutePath();
+        if (Files.exists(dir.resolve(MARKER))) {
+            return dir;
+        }
+        Path full = sources(release);
+        try {
+            for (String c : classes(release)) {
+                Path target = dir.resolve(c);
+                Files.createDirectories(target.getParent());
+                Files.copy(full.resolve(c), target, StandardCopyOption.REPLACE_EXISTING);
+            }
+            Files.writeString(dir.resolve(MARKER), release.getCommit());
+        } catch (IOException e) {
+            throw new GitException("Impossibile preparare " + dir + ": " + e.getMessage(), e);
         }
         return dir;
     }

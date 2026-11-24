@@ -27,14 +27,43 @@ public final class AppConfig {
         this.props = props;
     }
 
+    /**
+     * Carica la configurazione da {@code file}; se il file non esiste, cerca una risorsa con lo stesso nome
+     * nel classpath (cartella {@code src/main/resources}).
+     */
     public static AppConfig load(Path file) throws ConfigException {
+        Properties p = readProperties(file);
+        if (p == null) {
+            throw new ConfigException("Configurazione non trovata: ne' " + file.toAbsolutePath()
+                    + " ne' la risorsa " + file.getFileName() + " in src/main/resources");
+        }
+        return new AppConfig(p);
+    }
+
+    /**
+     * Legge un file di proprieta': prima dal percorso indicato (relativo alla cartella di esecuzione),
+     * poi, se non esiste, dalla risorsa con lo stesso nome nel classpath. {@code null} se non c'e' nessuno dei due.
+     */
+    static Properties readProperties(Path file) throws ConfigException {
         Properties p = new Properties();
-        try (InputStream in = Files.newInputStream(file)) {
-            p.load(in);
+        try {
+            if (Files.exists(file)) {
+                try (InputStream in = Files.newInputStream(file)) {
+                    p.load(in);
+                }
+                return p;
+            }
+            String resource = file.getFileName().toString();
+            try (InputStream in = AppConfig.class.getClassLoader().getResourceAsStream(resource)) {
+                if (in == null) {
+                    return null;
+                }
+                p.load(in);
+                return p;
+            }
         } catch (IOException e) {
             throw new ConfigException("Impossibile leggere " + file + ": " + e.getMessage(), e);
         }
-        return new AppConfig(p);
     }
 
     private String required(String key) throws ConfigException {
@@ -183,20 +212,16 @@ public final class AppConfig {
             return env.trim();
         }
         Path file = Path.of(optional("sonar.token.file", "secrets.properties"));
-        if (Files.exists(file)) {
-            Properties secrets = new Properties();
-            try (InputStream in = Files.newInputStream(file)) {
-                secrets.load(in);
-            } catch (IOException e) {
-                throw new ConfigException("Impossibile leggere " + file + ": " + e.getMessage(), e);
-            }
+        Properties secrets = readProperties(file);
+        if (secrets != null) {
             String token = secrets.getProperty("sonar.token", "");
             if (!token.isBlank()) {
                 return token.trim();
             }
         }
         throw new ConfigException("Token SonarCloud mancante: imposta la variabile d'ambiente SONAR_TOKEN "
-                + "oppure scrivi sonar.token=<token> in " + file);
+                + "oppure scrivi sonar.token=<token> in " + file + " (nella radice del progetto "
+                + "o in src/main/resources)");
     }
 
     private String optional(String key, String defaultValue) {
