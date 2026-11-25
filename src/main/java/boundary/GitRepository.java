@@ -74,6 +74,24 @@ public final class GitRepository {
         return run("ls-tree", "-r", "--name-only", commit).lines().filter(l -> !l.isBlank()).toList();
     }
 
+    /**
+     * Data (dell'autore) dell'ultimo commit che modifica almeno un file nella storia di {@code rev}. I commit
+     * vuoti, come quelli con cui SVN creava o spostava i tag, non contano.
+     */
+    public Optional<Instant> lastChangeTime(String rev) throws GitException {
+        String out = run("log", "-1", "--format=%at", rev, "--", ".").strip();
+        return out.isEmpty() ? Optional.empty() : Optional.of(Instant.ofEpochSecond(Long.parseLong(out)));
+    }
+
+    /** {@code true} se {@code ancestor} fa parte della storia di {@code commit} (o coincide). */
+    public boolean isAncestor(String ancestor, String commit) throws GitException {
+        Result r = runAllowingFailure("merge-base", "--is-ancestor", ancestor, commit);
+        if (r.exitCode == 0 || r.exitCode == 1) {
+            return r.exitCode == 0;
+        }
+        throw new GitException("git merge-base --is-ancestor fallito (exit " + r.exitCode + "): " + r.stderr.trim());
+    }
+
     /** Hash dei commit di un intervallo (es. "a..b" oppure un singolo riferimento per tutta la storia). */
     public Set<String> revList(String range) throws GitException {
         return run("rev-list", range).lines().filter(l -> !l.isBlank()).collect(Collectors.toSet());

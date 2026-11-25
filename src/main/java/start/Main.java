@@ -3,6 +3,7 @@ package start;
 import config.AppConfig;
 import control.FeatureDatasetController;
 import control.GitMetricsController;
+import control.LabelingController;
 import control.OoMetricsController;
 import control.ReleaseExtractionController;
 import control.SonarMetricsController;
@@ -33,7 +34,7 @@ public final class Main {
         System.setProperty("java.util.logging.SimpleFormatter.format", "%5$s%6$s%n");
     }
 
-    private static final List<String> ALL_STEPS = List.of("releases", "git", "ck", "sonar", "features");
+    private static final List<String> ALL_STEPS = List.of("releases", "git", "ck", "sonar", "features", "labeling");
     private static final Logger LOG = Logger.getLogger(Main.class.getName());
 
     private Main() {
@@ -76,6 +77,7 @@ public final class Main {
             case "ck" -> new OoMetricsController(config).run();
             case "sonar" -> new SonarMetricsController(config).run();
             case "features" -> new FeatureDatasetController(config).run();
+            case "labeling" -> new LabelingController(config).run();
             default -> throw new IllegalStateException("Passo non previsto: " + step);
         }
     }
