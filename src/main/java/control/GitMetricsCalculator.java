@@ -62,13 +62,22 @@ public final class GitMetricsCalculator {
         for (Commit commit : history) {
             List<FileChange> javaChanges = commit.changes().stream()
                     .filter(c -> c.path().endsWith(".java")).toList();
+            // le rinomine di un commit valgono tutte insieme: prima si tolgono i vecchi percorsi, poi si
+            // assegnano i nuovi (es. A -> B e B -> C nello stesso commit: B eredita la storia di A, C quella di B).
+            // Un percorso che ha ancora la sua storia la conserva: nei tag SVN rifatti (es. 1.2.1, marzo 2009) i
+            // file vengono copiati in una cartella temporanea e poi "rinominati" al loro posto, ma la classe e'
+            // sempre la stessa.
+            Map<String, Accumulator> moved = new HashMap<>();
             for (FileChange c : javaChanges) {
                 if (c.isRename()) {
-                    Accumulator moved = byPath.remove(c.oldPath());
-                    if (moved != null) {
-                        byPath.putIfAbsent(c.path(), moved);
+                    Accumulator acc = byPath.remove(c.oldPath());
+                    if (acc != null) {
+                        moved.put(c.path(), acc);
                     }
                 }
+            }
+            moved.forEach(byPath::putIfAbsent);
+            for (FileChange c : javaChanges) {
                 byPath.computeIfAbsent(c.path(), p -> new Accumulator(commit.time()));
             }
 

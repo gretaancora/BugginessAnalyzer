@@ -177,8 +177,32 @@ public final class AppConfig {
         }
     }
 
-    public String sonarScannerCommand() {
-        return optional("sonar.scanner.command", "sonar-scanner");
+    /** Variabile d'ambiente con la cartella di installazione di sonar-scanner. */
+    public static final String SCANNER_HOME_ENV = "SONAR_SCANNER_HOME";
+
+    /**
+     * Comando di sonar-scanner: se e' impostata la variabile d'ambiente {@value #SCANNER_HOME_ENV}, il
+     * programma {@code bin/sonar-scanner} della cartella indicata; altrimenti {@code sonar.scanner.command}
+     * (predefinito "sonar-scanner", cercato nel PATH). Cosi' il percorso della propria installazione non
+     * finisce nel file di configurazione versionato.
+     */
+    public String sonarScannerCommand() throws ConfigException {
+        return resolveScannerCommand(System.getenv(SCANNER_HOME_ENV), optional("sonar.scanner.command", "sonar-scanner"),
+                System.getProperty("os.name", ""));
+    }
+
+    static String resolveScannerCommand(String scannerHome, String configured, String osName) throws ConfigException {
+        if (scannerHome == null || scannerHome.isBlank()) {
+            return configured;
+        }
+        String executable = osName.toLowerCase().startsWith("windows") ? "sonar-scanner.bat" : "sonar-scanner";
+        Path command = Path.of(scannerHome.trim()).resolve("bin").resolve(executable);
+        if (!Files.isRegularFile(command)) {
+            throw new ConfigException("La variabile d'ambiente " + SCANNER_HOME_ENV + " vale \"" + scannerHome
+                    + "\", ma " + command + " non esiste: deve indicare la cartella di installazione di sonar-scanner "
+                    + "(quella che contiene bin/)");
+        }
+        return command.toString();
     }
 
     public String sonarDockerImage() {
@@ -202,26 +226,54 @@ public final class AppConfig {
         }
     }
 
+    /** Token e indicazione di dove e' stato letto (per i messaggi di diagnostica). */
+    public record Secret(String value, String origin) {
+
+        /** Primi 4 caratteri e lunghezza: abbastanza per riconoscere il token senza mostrarlo. */
+        public String masked() {
+            return (value.length() <= 4 ? "****" : value.substring(0, 4) + "...") + " (" + value.length() + " caratteri)";
+        }
+    }
+
     /**
      * Token SonarCloud: dalla variabile d'ambiente {@code SONAR_TOKEN} oppure dalla proprieta'
-     * {@code sonar.token} del file indicato da {@code sonar.token.file} (da non versionare).
+     * {@code sonar.token} del file indicato da {@code sonar.token.file} (da non versionare), cercato nella
+     * cartella di esecuzione e poi in src/main/resources. Eventuali virgolette attorno al valore vengono tolte.
      */
-    public String sonarToken() throws ConfigException {
+
+    public Secret sonarSecret() throws ConfigException {
         String env = System.getenv("SONAR_TOKEN");
         if (env != null && !env.isBlank()) {
-            return env.trim();
+            return new Secret(unquote(env), "variabile d'ambiente SONAR_TOKEN");
         }
         Path file = Path.of(optional("sonar.token.file", "secrets.properties"));
         Properties secrets = readProperties(file);
         if (secrets != null) {
             String token = secrets.getProperty("sonar.token", "");
             if (!token.isBlank()) {
-                return token.trim();
+                return new Secret(unquote(token), origin(file));
             }
         }
         throw new ConfigException("Token SonarCloud mancante: imposta la variabile d'ambiente SONAR_TOKEN "
                 + "oppure scrivi sonar.token=<token> in " + file + " (nella radice del progetto "
                 + "o in src/main/resources)");
+    }
+
+    /** Dove {@link #readProperties} trova il file: percorso su disco oppure risorsa del classpath. */
+    static String origin(Path file) {
+        if (Files.exists(file)) {
+            return file.toAbsolutePath().toString();
+        }
+        java.net.URL url = AppConfig.class.getClassLoader().getResource(file.getFileName().toString());
+        return url == null ? file.toString() : url.toString();
+    }
+
+    static String unquote(String raw) {
+        String v = raw.trim();
+        if (v.length() >= 2 && (v.startsWith("\"") && v.endsWith("\"") || v.startsWith("'") && v.endsWith("'"))) {
+            v = v.substring(1, v.length() - 1).trim();
+        }
+        return v;
     }
 
     private String optional(String key, String defaultValue) {

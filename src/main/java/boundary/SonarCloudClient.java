@@ -37,6 +37,16 @@ public final class SonarCloudClient implements AutoCloseable {
         this.token = token;
     }
 
+    /** Verifica il token con {@code api/authentication/validate}: {@code true} se SonarCloud lo riconosce. */
+    public boolean tokenIsValid() throws AnalysisException {
+        HttpResponse<String> r = get("/api/authentication/validate", Map.of());
+        if (r.statusCode() == 401) {
+            return false;
+        }
+        check(r, "verifica del token");
+        return json(r).optBoolean("valid", false);
+    }
+
     /** Crea il progetto pubblico se non esiste ancora; restituisce {@code true} se l'ha creato. */
     public boolean ensureProject(String key, String name) throws AnalysisException {
         if (projectExists(key)) {

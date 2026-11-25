@@ -110,4 +110,40 @@ class GitMetricsCalculatorTest {
         var res = calc.compute(1, week(1), history, Set.of("c1"), Set.of(), List.of(A));
         assertEquals(0, res.metrics().getFirst().get(GitMetric.AGE));
     }
+
+    @Test
+    void renamesInTheSameCommitApplyTogether() {
+        String c = "mod/src/main/java/p/C.java";
+        // nello stesso commit: A -> B e B -> C (l'ordine delle righe non deve contare)
+        for (boolean reversed : new boolean[]{false, true}) {
+            List<FileChange> chain = new ArrayList<>(List.of(new FileChange(A, B, 1, 0), new FileChange(B, c, 1, 0)));
+            if (reversed) {
+                java.util.Collections.reverse(chain);
+            }
+            List<Commit> history = List.of(
+                    new Commit("c1", "alice", week(0), List.of(ch(A, 10, 0))),
+                    new Commit("c2", "bob", week(1), List.of(ch(B, 20, 0))),
+                    new Commit("c3", "carol", week(2), chain));
+            Map<String, ClassMetrics> m = byClass(calc.compute(1, week(3), history, Set.of(), Set.of(), List.of(B, c)));
+            assertEquals(2, m.get(B).get(GitMetric.NR_TOTAL));   // c1 (come A) + c3
+            assertEquals(3, m.get(B).get(GitMetric.AGE));        // nata con A alla settimana 0
+            assertEquals(2, m.get(c).get(GitMetric.NR_TOTAL));   // c2 (come B) + c3
+            assertEquals(2, m.get(c).get(GitMetric.AGE));        // nata con B alla settimana 1
+        }
+    }
+
+    @Test
+    void svnTagCopyMovedBackKeepsTheOriginalHistory() {
+        String tmp = "1.2.x/" + A;
+        List<Commit> history = List.of(
+                new Commit("c1", "alice", week(0), List.of(ch(A, 10, 0))),
+                new Commit("c2", "bob", week(1), List.of(ch(A, 5, 1))),
+                new Commit("t1", "svn", week(5), List.of(ch(tmp, 15, 0))),              // copia nel tag
+                new Commit("t2", "svn", week(5), List.of(ch(A, 0, 15), ch(tmp, 0, 15))), // cancellazione
+                new Commit("t3", "svn", week(5), List.of(ch(tmp, 15, 0))),              // nuova copia
+                new Commit("t4", "svn", week(5), List.of(new FileChange(tmp, A, 0, 0)))); // "al posto giusto"
+        ClassMetrics m = calc.compute(1, week(6), history, Set.of(), Set.of(), List.of(A)).metrics().getFirst();
+        assertEquals(6, m.get(GitMetric.AGE));            // nata con c1, non con la copia del tag
+        assertEquals(3, m.get(GitMetric.NR_TOTAL));       // c1, c2 e la cancellazione t2 (t1, t3 toccano solo tmp)
+    }
 }

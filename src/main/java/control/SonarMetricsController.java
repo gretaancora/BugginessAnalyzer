@@ -60,8 +60,14 @@ public final class SonarMetricsController {
         List<Release> dataset = ReleaseDAO.readReleases(out.resolve(ReleaseDAO.DATASET_RELEASES_FILE));
         GitRepository git = GitRepository.openOrClone(config.gitLocalPath(), config.gitRemoteUrl());
         ReleaseWorkspace workspace = new ReleaseWorkspace(git, config);
-        String token = config.sonarToken();
-        SonarScanner scanner = new SonarScanner(config.sonarScannerMode(), config.sonarScannerCommand(),
+        AppConfig.Secret secret = config.sonarSecret();
+        String token = secret.value();
+        LOG.info(() -> "Token SonarCloud letto da " + secret.origin() + ": " + secret.masked());
+        String scannerCommand = config.sonarScannerCommand();
+        if (config.sonarScannerMode() == SonarScanner.Mode.CLI) {
+            LOG.info(() -> "sonar-scanner: " + scannerCommand);
+        }
+        SonarScanner scanner = new SonarScanner(config.sonarScannerMode(), scannerCommand,
                 config.sonarDockerImage());
 
         List<String> header = new ArrayList<>(List.of("Project", "Class", "ReleaseID"));
@@ -70,6 +76,13 @@ public final class SonarMetricsController {
         StringBuilder report = new StringBuilder(String.format("%nMetriche SonarCloud per release:%n"));
 
         try (SonarCloudClient sonar = new SonarCloudClient(config.sonarHostUrl(), config.sonarOrganization(), token)) {
+            if (!sonar.tokenIsValid()) {
+                throw new AnalysisException("SonarCloud non riconosce il token letto da " + secret.origin() + " ("
+                        + secret.masked() + "). Controlla che sia il token completo generato in My Account > "
+                        + "Security su " + config.sonarHostUrl() + ", che non sia scaduto o revocato e, se e' "
+                        + "impostata, che la variabile d'ambiente SONAR_TOKEN non contenga un token diverso.");
+            }
+            LOG.info("Token SonarCloud valido");
             for (Release r : dataset) {
                 String key = projectKey(r);
                 boolean created = sonar.ensureProject(key, "OpenJPA " + r.getVersion() + " (BugginessAnalyzer)");
