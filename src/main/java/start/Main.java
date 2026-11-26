@@ -1,6 +1,7 @@
 package start;
 
 import config.AppConfig;
+import control.ClassificationController;
 import control.FeatureDatasetController;
 import control.GitMetricsController;
 import control.LabelingController;
@@ -8,6 +9,7 @@ import control.OoMetricsController;
 import control.ReleaseExtractionController;
 import control.SonarMetricsController;
 import exception.AnalysisException;
+import exception.ClassificationException;
 import exception.ConfigException;
 import exception.GitException;
 import exception.JiraException;
@@ -24,7 +26,8 @@ import java.util.logging.Logger;
  * Esegue i passi della pipeline. Argomenti (tutti facoltativi, in qualsiasi ordine):
  * <ul>
  *   <li>un file {@code .properties}: configurazione (default {@code config.properties});</li>
- *   <li>i passi da eseguire tra {@code releases git ck sonar features} (default: tutti, in quest'ordine).</li>
+ *   <li>i passi da eseguire tra {@code releases git ck sonar features labeling ml} (default: tutti, in
+ *   quest'ordine).</li>
  * </ul>
  * Esempio: {@code mvn exec:java -Dexec.args="ck sonar features"}.
  */
@@ -34,7 +37,8 @@ public final class Main {
         System.setProperty("java.util.logging.SimpleFormatter.format", "%5$s%6$s%n");
     }
 
-    private static final List<String> ALL_STEPS = List.of("releases", "git", "ck", "sonar", "features", "labeling");
+    private static final List<String> ALL_STEPS = List.of("releases", "git", "ck", "sonar", "features", "labeling",
+            "ml");
     private static final Logger LOG = Logger.getLogger(Main.class.getName());
 
     private Main() {
@@ -63,14 +67,16 @@ public final class Main {
             }
             steps.stream().filter(s -> !ALL_STEPS.contains(s))
                     .forEach(s -> LOG.warning(() -> "Passo sconosciuto ignorato: " + s + " (validi: " + ALL_STEPS + ")"));
-        } catch (ConfigException | JiraException | GitException | PersistenceException | AnalysisException e) {
+        } catch (ConfigException | JiraException | GitException | PersistenceException | AnalysisException
+                 | ClassificationException e) {
             LOG.log(Level.SEVERE, e.getMessage(), e);
             System.exit(1);
         }
     }
 
     private static void runStep(String step, AppConfig config)
-            throws ConfigException, JiraException, GitException, PersistenceException, AnalysisException {
+            throws ConfigException, JiraException, GitException, PersistenceException, AnalysisException,
+            ClassificationException {
         switch (step) {
             case "releases" -> new ReleaseExtractionController(config).run();
             case "git" -> new GitMetricsController(config).run();
@@ -78,6 +84,7 @@ public final class Main {
             case "sonar" -> new SonarMetricsController(config).run();
             case "features" -> new FeatureDatasetController(config).run();
             case "labeling" -> new LabelingController(config).run();
+            case "ml" -> new ClassificationController(config).run();
             default -> throw new IllegalStateException("Passo non previsto: " + step);
         }
     }

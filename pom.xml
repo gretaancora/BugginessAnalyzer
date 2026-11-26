@@ -25,6 +25,25 @@
             <artifactId>ck</artifactId>
             <version>0.7.0</version>
         </dependency>
+        <!-- Weka (Milestone 2): classificatori, feature selection, undersampling -->
+        <dependency>
+            <groupId>nz.ac.waikato.cms.weka</groupId>
+            <artifactId>weka-stable</artifactId>
+            <version>3.8.6</version>
+        </dependency>
+        <!-- SMOTE e' un pacchetto Weka separato. Dichiara weka-dev con un intervallo di versioni aperto: lo si
+             esclude, altrimenti Maven porterebbe una seconda copia di Weka in conflitto con weka-stable. -->
+        <dependency>
+            <groupId>nz.ac.waikato.cms.weka</groupId>
+            <artifactId>SMOTE</artifactId>
+            <version>1.0.3</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>nz.ac.waikato.cms.weka</groupId>
+                    <artifactId>weka-dev</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>

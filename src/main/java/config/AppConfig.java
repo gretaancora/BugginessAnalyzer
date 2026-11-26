@@ -311,4 +311,43 @@ public final class AppConfig {
         }
         return refs;
     }
+
+    /** Parametri degli esperimenti di classificazione (passo ml); ogni chiave ml.* e' facoltativa. */
+    public ExperimentSettings experimentSettings() throws ConfigException {
+        List<Integer> k = new java.util.ArrayList<>();
+        for (String v : optional("ml.ibk.k", "1,3,5,7,9,11,13,15").split(",")) {
+            if (!v.isBlank()) {
+                k.add(parseInt("ml.ibk.k", v.trim()));
+            }
+        }
+        int threads = parseInt("ml.threads", optional("ml.threads", "0"));
+        if (threads <= 0) {
+            threads = Math.max(1, Runtime.getRuntime().availableProcessors() - 1);
+        }
+        return new ExperimentSettings(
+                parseInt("ml.cv.repetitions", optional("ml.cv.repetitions", "10")),
+                parseInt("ml.cv.folds", optional("ml.cv.folds", "10")),
+                parseDouble("ml.holdout.train.fraction", optional("ml.holdout.train.fraction", "0.8")),
+                parseDouble("ml.validation.fraction", optional("ml.validation.fraction", "0.2")),
+                k,
+                parseInt("ml.bootstrap.samples", optional("ml.bootstrap.samples", "2000")),
+                parseInt("ml.seed", optional("ml.seed", "1")),
+                threads);
+    }
+
+    private static int parseInt(String key, String raw) throws ConfigException {
+        try {
+            return Integer.parseInt(raw.trim());
+        } catch (NumberFormatException e) {
+            throw new ConfigException(key + " non e' un intero: " + raw, e);
+        }
+    }
+
+    private static double parseDouble(String key, String raw) throws ConfigException {
+        try {
+            return Double.parseDouble(raw.trim());
+        } catch (NumberFormatException e) {
+            throw new ConfigException(key + " non e' un numero: " + raw, e);
+        }
+    }
 }
