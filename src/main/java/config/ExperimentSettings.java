@@ -17,12 +17,22 @@ import java.util.List;
  * @param bootstrapSamples     ricampionamenti del bootstrap appaiato (holdout)
  * @param seed                 seme di base di tutte le scelte casuali
  * @param threads              fold della CV eseguiti in parallelo
+ * @param runHoldout           se eseguire l'ordered holdout
+ * @param runCrossValidation   se eseguire la 10x10 cross-validation
  */
 public record ExperimentSettings(int repetitions, int folds, double holdoutTrainFraction, double validationFraction,
-                                 List<Integer> kValues, int bootstrapSamples, int seed, int threads) {
+                                 List<Integer> kValues, int bootstrapSamples, int seed, int threads,
+                                 boolean runHoldout, boolean runCrossValidation) {
 
     public ExperimentSettings {
         kValues = List.copyOf(kValues);
+    }
+
+    /** Stessi parametri, con entrambe le validazioni. */
+    public ExperimentSettings(int repetitions, int folds, double holdoutTrainFraction, double validationFraction,
+                              List<Integer> kValues, int bootstrapSamples, int seed, int threads) {
+        this(repetitions, folds, holdoutTrainFraction, validationFraction, kValues, bootstrapSamples, seed, threads,
+                true, true);
     }
 
     /** Controlla che i parametri siano coerenti. */
@@ -41,6 +51,9 @@ public record ExperimentSettings(int repetitions, int folds, double holdoutTrain
         }
         if (bootstrapSamples < 100) {
             throw new ConfigException("ml.bootstrap.samples deve essere almeno 100: " + bootstrapSamples);
+        }
+        if (!runHoldout && !runCrossValidation) {
+            throw new ConfigException("ml.validations deve contenere holdout, cv o entrambi");
         }
         if (threads < 1) {
             throw new ConfigException("ml.threads deve essere positivo: " + threads);

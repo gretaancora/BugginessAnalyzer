@@ -57,21 +57,25 @@ public final class ClassificationController {
         LOG.info(describe(dataset, settings));
 
         // 1. ordered holdout
-        long start = System.nanoTime();
-        HoldoutOutcome holdout = new HoldoutExperiment(dataset, settings).run();
-        List<Comparison> holdoutTests = ExperimentComparisons.holdout(holdout, settings.bootstrapSamples(),
-                settings.seed());
-        ExperimentResultsDAO.writeHoldout(holdout, dataset, out);
-        ExperimentResultsDAO.writeComparisons(holdoutTests, out.resolve(ExperimentResultsDAO.HOLDOUT_TESTS_FILE));
-        LOG.info(holdoutReport(holdout, holdoutTests, seconds(start)));
+        if (settings.runHoldout()) {
+            long start = System.nanoTime();
+            HoldoutOutcome holdout = new HoldoutExperiment(dataset, settings).run();
+            List<Comparison> holdoutTests = ExperimentComparisons.holdout(holdout, settings.bootstrapSamples(),
+                    settings.seed());
+            ExperimentResultsDAO.writeHoldout(holdout, dataset, out);
+            ExperimentResultsDAO.writeComparisons(holdoutTests, out.resolve(ExperimentResultsDAO.HOLDOUT_TESTS_FILE));
+            LOG.info(holdoutReport(holdout, holdoutTests, seconds(start)));
+        }
 
         // 2. 10x10 cross-validation annidata
-        start = System.nanoTime();
-        List<FoldOutcome> folds = new CrossValidationExperiment(dataset, settings).run();
-        List<Comparison> cvTests = ExperimentComparisons.crossValidation(folds);
-        ExperimentResultsDAO.writeCrossValidation(folds, out);
-        ExperimentResultsDAO.writeComparisons(cvTests, out.resolve(ExperimentResultsDAO.CV_TESTS_FILE));
-        LOG.info(cvReport(folds, cvTests, settings, seconds(start)));
+        if (settings.runCrossValidation()) {
+            long start = System.nanoTime();
+            List<FoldOutcome> folds = new CrossValidationExperiment(dataset, settings).run();
+            List<Comparison> cvTests = ExperimentComparisons.crossValidation(folds);
+            ExperimentResultsDAO.writeCrossValidation(folds, out);
+            ExperimentResultsDAO.writeComparisons(cvTests, out.resolve(ExperimentResultsDAO.CV_TESTS_FILE));
+            LOG.info(cvReport(folds, cvTests, settings, seconds(start)));
+        }
         LOG.info(() -> "Risultati scritti in " + out.toAbsolutePath() + " (file ml_*.csv)");
     }
 
@@ -104,8 +108,9 @@ public final class ClassificationController {
                 + "non sono definite)%n", withMissing, buggyWithMissing));
         sb.append(String.format(Locale.ROOT, "Classi con Size = 0: %d (per NPofBX la densita' usa Size = 1)%n",
                 zeroSize));
-        sb.append(String.format(Locale.ROOT, "Configurazioni: %d; k di IBk: %s; CV %dx%d; thread: %d",
-                ModelConfiguration.all().size(), s.kValues(), s.repetitions(), s.folds(), s.threads()));
+        sb.append(String.format(Locale.ROOT, "Configurazioni: %d; k di IBk: %s; CV %dx%d; thread: %d; validazioni: %s",
+                ModelConfiguration.all().size(), s.kValues(), s.repetitions(), s.folds(), s.threads(),
+                (s.runHoldout() ? "holdout " : "") + (s.runCrossValidation() ? "cv" : "")));
         return sb.toString();
     }
 

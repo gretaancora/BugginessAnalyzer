@@ -36,6 +36,9 @@ public final class Predictions {
         this.actual = actual.clone();
         this.predicted = predicted.clone();
         this.probabilityYes = probabilityYes.clone();
+        for (int i = 0; i < n; i++) {
+            this.probabilityYes[i] += 0.0;   // -0.0 diventa 0.0: stessa probabilita', stesso pareggio
+        }
         this.size = size.clone();
     }
 

@@ -72,7 +72,8 @@ public final class ExperimentResultsDAO {
             for (int i = 0; i < p.size(); i++) {
                 predictions.add(concat(recipe(r.recipe()), List.of(dataset.className(p.rowId(i)),
                         Integer.toString(dataset.releaseId(p.rowId(i))), num(p.classSize(i)), yesNo(p.actual(i)),
-                        yesNo(p.predicted(i)), num(p.probabilityYes(i)), String.format(Locale.ROOT, "%.6e", p.riskDensity(i)))));
+                        yesNo(p.predicted(i)), Double.toString(p.probabilityYes(i)),
+                        Double.toString(p.riskDensity(i)))));
             }
         }
         testTable.write(dir.resolve(HOLDOUT_TEST_FILE));

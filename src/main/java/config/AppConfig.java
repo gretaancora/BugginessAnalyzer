@@ -324,6 +324,14 @@ public final class AppConfig {
         if (threads <= 0) {
             threads = Math.max(1, Runtime.getRuntime().availableProcessors() - 1);
         }
+        java.util.Set<String> validations = new java.util.HashSet<>();
+        for (String v : optional("ml.validations", "holdout,cv").split(",")) {
+            String name = v.trim().toLowerCase(java.util.Locale.ROOT);
+            if (!name.isEmpty() && !name.equals("holdout") && !name.equals("cv")) {
+                throw new ConfigException("ml.validations: valore sconosciuto " + v + " (validi: holdout, cv)");
+            }
+            validations.add(name);
+        }
         return new ExperimentSettings(
                 parseInt("ml.cv.repetitions", optional("ml.cv.repetitions", "10")),
                 parseInt("ml.cv.folds", optional("ml.cv.folds", "10")),
@@ -332,7 +340,9 @@ public final class AppConfig {
                 k,
                 parseInt("ml.bootstrap.samples", optional("ml.bootstrap.samples", "2000")),
                 parseInt("ml.seed", optional("ml.seed", "1")),
-                threads);
+                threads,
+                validations.contains("holdout"),
+                validations.contains("cv"));
     }
 
     private static int parseInt(String key, String raw) throws ConfigException {
