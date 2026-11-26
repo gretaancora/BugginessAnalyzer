@@ -86,7 +86,11 @@ public final class ClassificationController {
         int buggy = 0;
         int withMissing = 0;
         int buggyWithMissing = 0;
+        int zeroSize = 0;
+        weka.core.Attribute sizeAttribute = d.instances().attribute(ClassDataset.SIZE);
+        int sizeIndex = sizeAttribute == null ? -1 : sizeAttribute.index();
         for (Instance inst : d.instances()) {
+            zeroSize += sizeIndex >= 0 && inst.value(sizeIndex) == 0 ? 1 : 0;
             boolean b = (int) inst.classValue() == yes;
             boolean missing = inst.hasMissingValue();
             buggy += b ? 1 : 0;
@@ -98,6 +102,8 @@ public final class ClassificationController {
                 100.0 * buggy / d.size(), d.featureNames().size(), d.featureNames()));
         sb.append(String.format(Locale.ROOT, "Righe con valori mancanti: %d (buggy: %d; per SMOTE le loro distanze "
                 + "non sono definite)%n", withMissing, buggyWithMissing));
+        sb.append(String.format(Locale.ROOT, "Classi con Size = 0: %d (per NPofBX la densita' usa Size = 1)%n",
+                zeroSize));
         sb.append(String.format(Locale.ROOT, "Configurazioni: %d; k di IBk: %s; CV %dx%d; thread: %d",
                 ModelConfiguration.all().size(), s.kValues(), s.repetitions(), s.folds(), s.threads()));
         return sb.toString();
@@ -145,24 +151,29 @@ public final class ClassificationController {
     }
 
     private static String table(List<RecipeResult> results, Function<RecipeResult, String> marker) {
-        StringBuilder sb = new StringBuilder(String.format(Locale.ROOT, "  %-34s %7s %7s %7s %7s %7s%n", "Ricetta",
-                "Kappa", "AUC", "Prec", "Recall", "Acc"));
+        StringBuilder sb = new StringBuilder(String.format(Locale.ROOT, "  %-34s %7s %7s %7s %7s %7s %8s %8s%n",
+                "Ricetta", "Kappa", "AUC", "Prec", "Recall", "Acc", "NPofB10", "NPofB20"));
         for (RecipeResult r : results) {
             Metrics m = r.metrics();
-            sb.append(String.format(Locale.ROOT, "  %-34s %7.3f %7.3f %7.3f %7.3f %7.3f%n",
+            sb.append(String.format(Locale.ROOT, "  %-34s %7.3f %7.3f %7.3f %7.3f %7.3f %8.3f %8.3f%n",
                     r.recipe().label() + marker.apply(r), m.kappa(), m.auc(), m.precision(), m.recall(),
-                    m.accuracy()));
+                    m.accuracy(), m.npofb10(), m.npofb20()));
         }
+        Metrics any = results.getFirst().metrics();
+        sb.append(String.format(Locale.ROOT, "  %-34s %47s %8.3f %8.3f%n", "Riferimento: ottimo", "",
+                any.optimalNPofB10(), any.optimalNPofB20()));
+        sb.append(String.format(Locale.ROOT, "  %-34s %47s %8.3f %8.3f%n", "Riferimento: prima le piu' piccole", "",
+                any.smallestFirstNPofB10(), any.smallestFirstNPofB20()));
         return sb.toString();
     }
 
-    /** Confronti tra le versioni migliori su Kappa e AUC. */
+    /** Confronti tra le versioni migliori su Kappa, AUC e NPofB20. */
     private static String bestTests(List<Comparison> tests) {
         StringBuilder sb = new StringBuilder("Versioni migliori a confronto (p corretto con Holm):\n");
         for (Comparison c : tests) {
-            if (c.family().equals("BEST") && (c.metric().equals("Kappa") || c.metric().equals("AUC"))) {
+            if (c.family().equals("BEST") && List.of("Kappa", "AUC", "NPofB20").contains(c.metric())) {
                 String p = c.pHolm() < 0.001 ? "< 0.001" : String.format(Locale.ROOT, "%.3f", c.pHolm());
-                sb.append(String.format(Locale.ROOT, "  %-5s %-20s vs %-20s diff %+.3f  p %s%s%n", c.metric(),
+                sb.append(String.format(Locale.ROOT, "  %-7s %-20s vs %-20s diff %+.3f  p %s%s%n", c.metric(),
                         c.modelA(), c.modelB(), c.difference(), p, c.pHolm() < 0.05 ? "  *" : ""));
             }
         }
@@ -173,13 +184,25 @@ public final class ClassificationController {
         StringBuilder sb = new StringBuilder();
         sb.append(String.format(Locale.ROOT, "=== 10x10 cross-validation annidata (%d fold, %.0f s) ===%n",
                 folds.size(), seconds));
-        sb.append(String.format(Locale.ROOT, "  %-34s %16s  %16s%n", "Modello", "Kappa", "AUC"));
+        sb.append(String.format(Locale.ROOT, "  %-34s %16s  %16s  %16s%n", "Modello", "Kappa", "AUC", "NPofB20"));
         for (ModelConfiguration conf : ModelConfiguration.all()) {
             sb.append(row(conf.label(), folds, f -> f.testResult(conf)));
         }
         for (ClassifierType c : ClassifierType.values()) {
             sb.append(row("Best(" + c.label() + ")", folds, f -> f.bestResult(c)));
         }
+        double[] opt10 = folds.stream().mapToDouble(f -> f.testResults().getFirst().metrics().optimalNPofB10())
+                .toArray();
+        double[] opt20 = folds.stream().mapToDouble(f -> f.testResults().getFirst().metrics().optimalNPofB20())
+                .toArray();
+        double[] small10 = folds.stream().mapToDouble(f -> f.testResults().getFirst().metrics()
+                .smallestFirstNPofB10()).toArray();
+        double[] small20 = folds.stream().mapToDouble(f -> f.testResults().getFirst().metrics()
+                .smallestFirstNPofB20()).toArray();
+        sb.append(String.format(Locale.ROOT, "  %-34s NPofB10 %.3f, NPofB20 %.3f (media sui fold)%n",
+                "Riferimento: ottimo", mean(opt10), mean(opt20)));
+        sb.append(String.format(Locale.ROOT, "  %-34s NPofB10 %.3f, NPofB20 %.3f (media sui fold)%n",
+                "Riferimento: prima le piu' piccole", mean(small10), mean(small20)));
         sb.append("Configurazione scelta per ogni classificatore (fold su ").append(folds.size()).append("):\n");
         for (ClassifierType c : ClassifierType.values()) {
             Map<String, Integer> freq = new TreeMap<>();
@@ -200,8 +223,9 @@ public final class ClassificationController {
     private static String row(String label, List<FoldOutcome> folds, Function<FoldOutcome, RecipeResult> pick) {
         double[] kappa = folds.stream().mapToDouble(f -> pick.apply(f).metrics().kappa()).toArray();
         double[] auc = folds.stream().mapToDouble(f -> pick.apply(f).metrics().auc()).toArray();
-        return String.format(Locale.ROOT, "  %-34s %6.3f +/- %.3f  %6.3f +/- %.3f%n", label, mean(kappa), std(kappa),
-                mean(auc), std(auc));
+        double[] npofb = folds.stream().mapToDouble(f -> pick.apply(f).metrics().npofb20()).toArray();
+        return String.format(Locale.ROOT, "  %-34s %6.3f +/- %.3f  %6.3f +/- %.3f  %6.3f +/- %.3f%n", label,
+                mean(kappa), std(kappa), mean(auc), std(auc), mean(npofb), std(npofb));
     }
 
     private static double mean(double[] v) {

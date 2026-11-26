@@ -19,11 +19,59 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class MetricsCalculatorTest {
 
     private static Predictions predictions(boolean[] actual, boolean[] predicted, double[] p) {
+        double[] size = new double[actual.length];
+        java.util.Arrays.fill(size, 1);
+        return predictions(actual, predicted, p, size);
+    }
+
+    private static Predictions predictions(boolean[] actual, boolean[] predicted, double[] p, double[] size) {
         int[] ids = new int[actual.length];
         for (int i = 0; i < ids.length; i++) {
             ids[i] = i;
         }
-        return new Predictions(ids, actual, predicted, p);
+        return new Predictions(ids, actual, predicted, p, size);
+    }
+
+    /**
+     * L'esempio discusso: 5 classi, 1.000 righe. Ordine per densita' A, B, C, D, E. Con il 20% (200 righe) si
+     * ispezionano A, B, C (180 righe; D porterebbe a 780 e non si conta): 2 buggy su 3. Con il 10% (100 righe)
+     * solo A e B (C porterebbe a 180): 1 su 3.
+     */
+    @Test
+    void npofbFollowsRiskDensityAndExcludesTheClassAcrossTheThreshold() {
+        boolean[] actual = {true, false, true, true, false};          // A, B, C, D, E
+        double[] p = {0.60, 0.30, 0.90, 0.80, 0.10};
+        double[] size = {50, 30, 100, 600, 220};
+        Metrics m = MetricsCalculator.compute(predictions(actual, new boolean[5], p, size));
+        assertEquals(2.0 / 3, m.npofb20(), 1e-12);
+        assertEquals(1.0 / 3, m.npofb10(), 1e-12);
+        // ottimo: buggy dalla piu' piccola (A 50, C 100, D 600): 20% -> A, C; 10% -> A (C porterebbe a 150)
+        assertEquals(2.0 / 3, m.optimalNPofB20(), 1e-12);
+        assertEquals(1.0 / 3, m.optimalNPofB10(), 1e-12);
+        // solo dimensione: B 30, A 50, C 100 (180), E porterebbe a 400 -> A, C su 3; al 10% B, A (80) -> A su 3
+        assertEquals(2.0 / 3, m.smallestFirstNPofB20(), 1e-12);
+        assertEquals(1.0 / 3, m.smallestFirstNPofB10(), 1e-12);
+    }
+
+    @Test
+    void npofbIncludesAClassThatEndsExactlyOnTheThreshold() {
+        // 1.000 righe: il 20% e' 200; la prima classe ne ha esattamente 200 ed e' buggy
+        boolean[] actual = {true, true, false};
+        double[] p = {0.9, 0.5, 0.1};
+        double[] size = {200, 300, 500};
+        Metrics m = MetricsCalculator.compute(predictions(actual, new boolean[3], p, size));
+        assertEquals(0.5, m.npofb20(), 1e-12);
+        assertEquals(0.0, m.npofb10(), 1e-12);
+    }
+
+    @Test
+    void npofbTiesUseProbabilityThenDatasetOrder() {
+        // stessa densita' (0,01): prima la probabilita' piu' alta (riga 1, 100 righe), poi la riga 0
+        boolean[] actual = {false, true, false};
+        double[] p = {0.5, 1.0, 0.0};
+        double[] size = {50, 100, 850};
+        Metrics m = MetricsCalculator.compute(predictions(actual, new boolean[3], p, size));
+        assertEquals(1.0, m.npofb10(), 1e-12);   // 10% = 100 righe: solo la riga 1, che e' buggy
     }
 
     @Test
@@ -59,11 +107,14 @@ class MetricsCalculatorTest {
         boolean[] actual = {true, false, true, false};
         boolean[] predicted = {true, false, false, true};
         double[] p = {0.8, 0.2, 0.4, 0.6};
-        Metrics weighted = MetricsCalculator.compute(predictions(actual, predicted, p), new double[]{2, 0, 1, 3});
+        double[] size = {10, 20, 30, 40};
+        Metrics weighted = MetricsCalculator.compute(predictions(actual, predicted, p, size),
+                new double[]{2, 0, 1, 3});
         Metrics repeated = MetricsCalculator.compute(predictions(
                 new boolean[]{true, true, true, false, false, false},
                 new boolean[]{true, true, false, true, true, true},
-                new double[]{0.8, 0.8, 0.4, 0.6, 0.6, 0.6}));
+                new double[]{0.8, 0.8, 0.4, 0.6, 0.6, 0.6},
+                new double[]{10, 10, 30, 40, 40, 40}));
         assertEquals(repeated, weighted);
     }
 

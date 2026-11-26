@@ -54,7 +54,8 @@ public final class RecipeEvaluator {
                 predicted[i] = Utils.maxIndex(dist) == yes;   // come Weka: a parita' vince la prima classe (no)
                 probability[i] = dist[yes];
             }
-            Predictions predictions = new Predictions(split.evaluationRowIds(), actual, predicted, probability);
+            Predictions predictions = new Predictions(split.evaluationRowIds(), actual, predicted, probability,
+                    split.evaluationSizes());
             Metrics metrics = MetricsCalculator.compute(predictions);
             int trainBuggy = train.attributeStats(train.classIndex()).nominalCounts[yes];
             return new RecipeResult(recipe, metrics, data.features(), train.numInstances(), trainBuggy,

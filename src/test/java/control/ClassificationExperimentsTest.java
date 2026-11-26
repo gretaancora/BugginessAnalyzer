@@ -42,8 +42,16 @@ class ClassificationExperimentsTest {
         assertEquals(18, h.testResults().size());
         // validation: 6 configurazioni per RF e NB, 6 x 2 valori di k per IBk
         assertEquals(6 + 6 + 12, h.selection().validationResults().size());
+        int size = d.instances().attribute(ClassDataset.SIZE).index();
         for (RecipeResult r : h.testResults()) {
             assertEquals(120, r.predictions().size());
+            // NPofBX usa Size originale (non il logaritmo)
+            for (int i = 0; i < r.predictions().size(); i++) {
+                assertEquals(d.instances().instance(r.predictions().rowId(i)).value(size),
+                        r.predictions().classSize(i), 0);
+            }
+            assertTrue(r.metrics().npofb20() >= r.metrics().npofb10());
+            assertTrue(r.metrics().npofb20() <= r.metrics().optimalNPofB20() + 1e-12);
             assertEquals(h.selection().recipeFor(r.recipe().configuration()), r.recipe());
             if (r.recipe().configuration().balancing() != entity.BalancingType.NONE) {
                 assertEquals(r.trainRows(), 2 * r.trainBuggy(), 2.0);   // training bilanciato 1:1

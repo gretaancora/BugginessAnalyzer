@@ -1,6 +1,7 @@
 package control;
 
 import entity.BalancingType;
+import entity.ClassDataset;
 import entity.FeatureSelectionType;
 import exception.ClassificationException;
 import weka.attributeSelection.AttributeSelection;
@@ -33,6 +34,7 @@ public final class EvaluationSplit {
     private final Instances train;
     private final Instances evaluation;
     private final int[] evaluationRowIds;
+    private final double[] evaluationSizes;
     private final int seed;
     private final Map<FeatureSelectionType, Prepared> selected = new HashMap<>();
     private final Map<String, Prepared> balanced = new HashMap<>();
@@ -46,11 +48,30 @@ public final class EvaluationSplit {
         this.train = DatasetPreprocessor.prepare(trainRaw);
         this.evaluation = DatasetPreprocessor.prepare(evaluationRaw);
         this.evaluationRowIds = DatasetPreprocessor.rowIds(evaluationRaw);
+        this.evaluationSizes = sizes(evaluationRaw);
         this.seed = seed;
     }
 
     public int[] evaluationRowIds() {
         return evaluationRowIds.clone();
+    }
+
+    /** Size (righe di codice, valore originale, senza logaritmo) delle righe di valutazione: serve a NPofBX. */
+    public double[] evaluationSizes() {
+        return evaluationSizes.clone();
+    }
+
+    private static double[] sizes(Instances raw) {
+        weka.core.Attribute size = raw.attribute(ClassDataset.SIZE);
+        if (size == null) {
+            throw new IllegalArgumentException("Il dataset non ha la colonna " + ClassDataset.SIZE
+                    + ", necessaria per NPofBX");
+        }
+        double[] values = new double[raw.numInstances()];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = raw.instance(i).value(size);
+        }
+        return values;
     }
 
     public int trainSize() {

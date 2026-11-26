@@ -63,24 +63,28 @@ class StatisticalTestsTest {
         boolean[] actual = new boolean[n];
         boolean[] predicted = new boolean[n];
         double[] p = new double[n];
+        double[] size = new double[n];
         Random r = new Random(5);
         for (int i = 0; i < n; i++) {
             ids[i] = i;
             actual[i] = r.nextDouble() < 0.3;
             p[i] = r.nextDouble();
             predicted[i] = p[i] > 0.5;
+            size[i] = 1 + r.nextInt(500);
         }
-        Predictions a = new Predictions(ids, actual, predicted, p);
+        Predictions a = new Predictions(ids, actual, predicted, p, size);
         Map<String, StatisticalTests.Outcome> o = StatisticalTests.pairedBootstrap(a, a, 300, 1);
         assertEquals(0, o.get("Kappa").difference(), 0);
         assertEquals(1, o.get("Kappa").pValue(), 0);
 
         // un modello perfetto contro uno casuale: differenza netta
-        Predictions perfect = new Predictions(ids, actual, actual, toDouble(actual));
+        Predictions perfect = new Predictions(ids, actual, actual, toDouble(actual), size);
         Map<String, StatisticalTests.Outcome> d = StatisticalTests.pairedBootstrap(perfect, a, 300, 1);
         assertTrue(d.get("Kappa").difference() > 0.5);
         assertTrue(d.get("Kappa").pValue() < 0.01);
         assertTrue(d.get("Kappa").ciLow() > 0);
+        assertEquals(0, o.get("NPofB20").difference(), 0);
+        assertEquals(1, o.get("NPofB20").pValue(), 0);
     }
 
     private static double[] toDouble(boolean[] b) {

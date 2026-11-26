@@ -37,7 +37,9 @@ public final class ExperimentResultsDAO {
 
     private static final List<String> RECIPE_COLUMNS = List.of("Classifier", "FeatureSelection", "Balancing", "K");
     private static final List<String> RESULT_COLUMNS = List.of("BalancedTrainRows", "BalancedTrainBuggy",
-            "NumFeatures", "Features", "TP", "FP", "TN", "FN", "Accuracy", "Precision", "Recall", "AUC", "Kappa");
+            "NumFeatures", "Features", "TP", "FP", "TN", "FN", "Accuracy", "Precision", "Recall", "AUC", "Kappa",
+            "NPofB10", "NPofB20", "OptimalNPofB10", "OptimalNPofB20", "SmallestFirstNPofB10",
+            "SmallestFirstNPofB20");
 
     private ExperimentResultsDAO() {
     }
@@ -60,7 +62,8 @@ public final class ExperimentResultsDAO {
         CsvTable testTable = new CsvTable(concat(List.of("TrainReleases", "TestReleases"), RECIPE_COLUMNS,
                 List.of("BestForClassifier", "Champion"), RESULT_COLUMNS));
         CsvTable predictions = new CsvTable(concat(RECIPE_COLUMNS,
-                List.of("Class", ClassDataset.RELEASE_ID, "Actual", "Predicted", "ProbabilityYes")));
+                List.of("Class", ClassDataset.RELEASE_ID, ClassDataset.SIZE, "Actual", "Predicted",
+                        "ProbabilityYes", "RiskDensity")));
         for (RecipeResult r : h.testResults()) {
             ModelConfiguration conf = r.recipe().configuration();
             testTable.add(concat(List.of(train, test), recipe(r.recipe()),
@@ -68,8 +71,8 @@ public final class ExperimentResultsDAO {
             Predictions p = r.predictions();
             for (int i = 0; i < p.size(); i++) {
                 predictions.add(concat(recipe(r.recipe()), List.of(dataset.className(p.rowId(i)),
-                        Integer.toString(dataset.releaseId(p.rowId(i))), yesNo(p.actual(i)), yesNo(p.predicted(i)),
-                        num(p.probabilityYes(i)))));
+                        Integer.toString(dataset.releaseId(p.rowId(i))), num(p.classSize(i)), yesNo(p.actual(i)),
+                        yesNo(p.predicted(i)), num(p.probabilityYes(i)), String.format(Locale.ROOT, "%.6e", p.riskDensity(i)))));
             }
         }
         testTable.write(dir.resolve(HOLDOUT_TEST_FILE));
@@ -193,7 +196,8 @@ public final class ExperimentResultsDAO {
         return List.of(Integer.toString(r.trainRows()), Integer.toString(r.trainBuggy()),
                 Integer.toString(r.features().size()), String.join(";", r.features()), num(m.tp()), num(m.fp()),
                 num(m.tn()), num(m.fn()), num(m.accuracy()), num(m.precision()), num(m.recall()), num(m.auc()),
-                num(m.kappa()));
+                num(m.kappa()), num(m.npofb10()), num(m.npofb20()), num(m.optimalNPofB10()),
+                num(m.optimalNPofB20()), num(m.smallestFirstNPofB10()), num(m.smallestFirstNPofB20()));
     }
 
     @SafeVarargs

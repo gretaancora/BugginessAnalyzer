@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class RecipeSelectorTest {
 
     private static RecipeResult result(Recipe r, double kappa, double auc) {
-        return new RecipeResult(r, new Metrics(0, 0, 0, 0, 0, 0, 0, auc, kappa), List.of(), 0, 0, null);
+        return new RecipeResult(r, new Metrics(0, 0, 0, 0, 0, 0, 0, auc, kappa, 0, 0, 0, 0, 0, 0), List.of(), 0, 0, null);
     }
 
     @Test

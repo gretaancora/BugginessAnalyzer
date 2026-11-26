@@ -19,6 +19,8 @@ public final class ClassDataset {
     public static final String ROW_ID = "RowId";
     public static final String RELEASE_ID = "ReleaseID";
     public static final String CLASS_ATTRIBUTE = "Buggy";
+    /** Righe di codice non commentate (ncloc di SonarCloud): misura dello sforzo di ispezione per NPofBX. */
+    public static final String SIZE = "Size";
     public static final String YES = "yes";
     public static final String NO = "no";
 
